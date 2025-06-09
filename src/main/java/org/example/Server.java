@@ -2,6 +2,7 @@ package org.example;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,5 +37,21 @@ public class Server {
         for(Client c : clientMap.values()){
                 c.sendMessage(message);
         }
+    }
+    public  void listen(){
+        while(true){
+            try {
+                Socket socket = serverSocket.accept();
+                Client client = new Client(this, socket);
+                new Thread(client).start();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        }
+    }
+
+    public Map<String, Client> getClientMap() {
+        return clientMap;
     }
 }
