@@ -16,6 +16,7 @@ public class Client implements  Runnable {
         for(String s : server.getClientMap().values()){
             whoIsLoggedIn += s + "\n";
         }
+        //4b
     }
     @Override
     public void run() {
