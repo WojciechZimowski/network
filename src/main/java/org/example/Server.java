@@ -3,55 +3,68 @@ package org.example;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class Server {
-   // private List<Client>clients;
-    private ServerSocket serverSocket;
-    private Map<String, Client> clientMap = new HashMap<>();
+    ServerSocket serverSocket;
+    List<ClientHandler> clientHandlers;
 
+    public Server(int port) throws IOException {
+        serverSocket = new ServerSocket(port);
+        clientHandlers = new ArrayList<>();
+    }
 
+    public void listen() throws IOException {
+        while(true) {
+            Socket socket = serverSocket.accept();
 
-    public Server() {
-        try {
-            serverSocket = new ServerSocket(1234);
-        } catch (IOException e) {
-            System.out.println("Could not listen on port: 1234");
+            ClientHandler handler = new ClientHandler(socket,this);
+            clientHandlers.add(handler);
+            Thread thread = new Thread(handler);
+            thread.start();
         }
     }
-    public void clientLoggedIn(Client client){
-        clientMap.put(client.getLogin(),client);
-                broadcast(String.format("%s się zalogował", client.getLogin()));
 
-        }
+    public void broadcast(String message,String sender) {
 
-
-    public void clientLoggedOut(Client client){
-        clientMap.remove(client.getLogin());
-        broadcast(String.format("%s się zalogował", client.getLogin()));
-
-    }
-    public void broadcast(String message){
-        for(Client c : clientMap.values()){
-                c.sendMessage(message);
+        for(ClientHandler handler : clientHandlers) {
+            handler.send(sender + ": " + message);
         }
     }
-    public  void listen(){
-        while(true){
-            try {
-                Socket socket = serverSocket.accept();
-                Client client = new Client(this, socket);
-                new Thread(client).start();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+    public void onClientConnected(ClientHandler newClient)
+    {
+        for(ClientHandler alreadyConnectedClient : clientHandlers){
+            if(alreadyConnectedClient != newClient){
+                alreadyConnectedClient.send("$login$" + newClient.getLogin());
             }
-
+        }
+    }
+    public void onClientDisconnected(ClientHandler disconnectedClient){
+        clientHandlers.remove(disconnectedClient);
+        for(ClientHandler alreadyConnectedClient : clientHandlers){
+            alreadyConnectedClient.send("$logout$" + disconnectedClient.getLogin());
         }
     }
 
-    public Map<String, Client> getClientMap() {
-        return clientMap;
+    public void sendOnlineList(ClientHandler client){
+        client.send("$online$" + clientHandlers.stream()
+                .map(ClientHandler::getLogin)
+                .collect(Collectors.joining("$")));
     }
+
+    public void whisper(ClientHandler sender, String recipient, String message){
+        Optional<ClientHandler> recipientHandler = clientHandlers.stream()
+                .filter(client -> client.getLogin().equals(recipient))
+                .findFirst();
+        if(recipientHandler.isPresent()){
+            recipientHandler.get().send(sender.getLogin() + ": " + message);
+        } else {
+            sender.send("Nie ma uzytkownika " + recipient);
+        }
+    }
+
 }
